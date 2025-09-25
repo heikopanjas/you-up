@@ -1,0 +1,40 @@
+{
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:you-up}",
+      "name": "Debug mytool",
+      "program": "${workspaceFolder:you-up}/.build/debug/mytool",
+      "preLaunchTask": "swift: Build Debug mytool"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:you-up}",
+      "name": "Release mytool",
+      "program": "${workspaceFolder:you-up}/.build/release/mytool",
+      "preLaunchTask": "swift: Build Release mytool"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:you-up}",
+      "name": "Debug you-up-cli",
+      "program": "${workspaceFolder:you-up}/.build/debug/you-up-cli",
+      "preLaunchTask": "swift: Build Debug you-up-cli"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:you-up}",
+      "name": "Release you-up-cli",
+      "program": "${workspaceFolder:you-up}/.build/release/you-up-cli",
+      "preLaunchTask": "swift: Build Release you-up-cli"
+    }
+  ]
+}
