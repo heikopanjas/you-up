@@ -15,6 +15,19 @@ public struct EndpointsConfiguration: Codable, Sendable {
         self.dnsTestDomains = dnsTestDomains ?? Self.defaultDNSTestDomains
     }
 
+    // Custom decoding to handle backward compatibility
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        self.endpoints = try container.decode([String].self, forKey: .endpoints)
+        self.dnsTestDomains = try container.decodeIfPresent([String].self, forKey: .dnsTestDomains) ?? Self.defaultDNSTestDomains
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case endpoints
+        case dnsTestDomains
+    }
+
     /// Default internet test endpoints
     public static let defaultInternetEndpoints = [
         "https://dns.google",  // Google DNS over HTTPS
