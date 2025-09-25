@@ -1,6 +1,6 @@
 # Copilot Instructions for you-up
 
-Last updated: 2025-09-25
+Last updated: 2025-09-26
 
 ## Project Overview
 
@@ -12,8 +12,8 @@ The main differentiator of `you-up` is its ability to diagnose whether network i
 
 - **Library Target (`you-up`)**: Core network checking functionality in `Sources/you-up/`
   - `NetworkChecker.swift`: Main class with gateway, internet, and DNS reachability checking
+  - `Configuration.swift`: Configuration system with EndpointsConfiguration, ConfigurationLoader, and ConfigurationError
   - `NetworkStatus` and `ReachabilityStatus`: Data structures for network state
-  - `EndpointsConfiguration` and `ConfigurationLoader`: Configuration system for customizable internet test endpoints and DNS test domains
   - `DNSServerInfo`: Data structure for DNS server information
 - **CLI Target (`you-up-cli`)**: Command-line interface in `Sources/you-up-cli/`
   - Provides human-readable output with smart network diagnosis
@@ -211,3 +211,10 @@ swift test
   - Updated `--show-config` to display both internet endpoints and DNS test domains
   - Updated README.md with comprehensive DNS functionality documentation
   - Updated copilot instructions with DNS testing guidelines and current project state
+
+- **2025-09-26**: Refactored configuration code into separate file
+  - Moved `EndpointsConfiguration`, `ConfigurationLoader`, and `ConfigurationError` from `NetworkChecker.swift` to new `Configuration.swift` file
+  - Improved code organization by separating configuration management from network checking logic
+  - Maintained all existing functionality and public APIs unchanged
+  - Verified successful build and CLI functionality after refactoring
+  - Updated copilot instructions to reflect new file structure
