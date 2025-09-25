@@ -19,8 +19,11 @@ struct YouUpCLI: AsyncParsableCommand {
     @Flag(name: [.long], help: "Only check internet connectivity (skip gateway check).")
     var internetOnly: Bool = false
 
-    @Flag(name: [.long], help: "Only check gateway connectivity (skip internet check).")
+    @Flag(name: [.long], help: "Only check gateway connectivity (skip internet and DNS checks).")
     var gatewayOnly: Bool = false
+
+    @Flag(name: [.long], help: "Only check DNS resolution (skip gateway and internet checks).")
+    var dnsOnly: Bool = false
 
     @Flag(name: [.short, .long], help: "Output results in JSON format.")
     var json: Bool = false
@@ -59,19 +62,25 @@ struct YouUpCLI: AsyncParsableCommand {
             let internetStatus = await checker.checkInternetReachability()
             printInternetStatus(internetStatus)
         }
+        else if dnsOnly {
+            let dnsStatus = await checker.checkDNSReachability()
+            printDNSStatus(dnsStatus)
+        }
         else {
             let status = await checker.checkNetworkStatus()
             printGatewayStatus(status.gateway)
             printInternetStatus(status.internet)
+            printDNSStatus(status.dns)
 
             print()
-            printSummary(gateway: status.gateway, internet: status.internet)
+            printSummary(gateway: status.gateway, internet: status.internet, dns: status.dns)
         }
     }
 
     private enum TestMode {
         case gatewayOnly
         case internetOnly
+        case dnsOnly
         case both
     }
 
@@ -81,6 +90,9 @@ struct YouUpCLI: AsyncParsableCommand {
         }
         else if internetOnly {
             return .internetOnly
+        }
+        else if dnsOnly {
+            return .dnsOnly
         }
         else {
             return .both
@@ -142,6 +154,29 @@ struct YouUpCLI: AsyncParsableCommand {
             }
         }
 
+        // Show DNS servers only for dns-only and both modes
+        if mode == .dnsOnly || mode == .both {
+            let dnsServers = checker.getDNSServers()
+            if !dnsServers.isEmpty {
+                print("🌐 DNS Servers:")
+                for server in dnsServers {
+                    if let interface = server.interface {
+                        print("  • \(server.address) (via \(interface))")
+                    }
+                    else {
+                        print("  • \(server.address)")
+                    }
+                }
+                print()
+            }
+
+            print("🔍 DNS Test Domains:")
+            for domain in checker.getConfiguredDNSTestDomains() {
+                print("  • \(domain)")
+            }
+            print()
+        }
+
         // Show internet test endpoints only for internet-only and both modes
         if mode == .internetOnly || mode == .both {
             print("🌐 Internet Test Endpoints:")
@@ -169,6 +204,10 @@ struct YouUpCLI: AsyncParsableCommand {
             "internet": [
                 "status": status.internet.description,
                 "reachable": status.internet.isReachable
+            ],
+            "dns": [
+                "status": status.dns.description,
+                "reachable": status.dns.isReachable
             ]
         ]
 
@@ -189,19 +228,36 @@ struct YouUpCLI: AsyncParsableCommand {
         print("\(icon) Internet: \(status)")
     }
 
-    private func printSummary(gateway: ReachabilityStatus, internet: ReachabilityStatus) {
+    private func printDNSStatus(_ status: ReachabilityStatus) {
+        let icon = status.isReachable ? "✅" : "❌"
+        print("\(icon) DNS: \(status)")
+    }
+
+    private func printSummary(gateway: ReachabilityStatus, internet: ReachabilityStatus, dns: ReachabilityStatus) {
         print("📊 Network Diagnosis:")
 
-        switch (gateway.isReachable, internet.isReachable) {
-            case (true, true):
-                print("   🎉 All systems operational - full internet connectivity")
-            case (true, false):
-                print("   ⚠️  Local network OK, but internet is unreachable")
+        switch (gateway.isReachable, internet.isReachable, dns.isReachable) {
+            case (true, true, true):
+                print("   🎉 All systems operational - full network connectivity")
+            case (true, true, false):
+                print("   ⚠️  Network and internet OK, but DNS resolution is failing")
+                print("   💡 This suggests DNS server issues - try changing DNS settings")
+            case (true, false, true):
+                print("   ⚠️  Local network and DNS OK, but internet is unreachable")
                 print("   💡 This suggests an ISP or WAN connectivity issue")
-            case (false, true):
-                print("   🤔 Internet reachable but gateway is not responding")
+            case (true, false, false):
+                print("   ⚠️  Local network OK, but internet and DNS are unreachable")
+                print("   💡 This suggests ISP issues affecting both connectivity and DNS")
+            case (false, true, true):
+                print("   🤔 Internet and DNS reachable but gateway is not responding")
                 print("   💡 This is unusual - check your router configuration")
-            case (false, false):
+            case (false, true, false):
+                print("   🤔 Internet reachable but gateway and DNS are failing")
+                print("   💡 Very unusual configuration - check network settings")
+            case (false, false, true):
+                print("   ⚠️  DNS working but gateway and internet are unreachable")
+                print("   💡 Check your network cables, WiFi connection, and router")
+            case (false, false, false):
                 print("   🚫 No network connectivity detected")
                 print("   💡 Check your network cables, WiFi connection, and router")
         }
@@ -241,6 +297,11 @@ struct YouUpCLI: AsyncParsableCommand {
             for endpoint in config.endpoints {
                 print("   • \(endpoint)")
             }
+            print()
+            print("🔍 Configured DNS test domains:")
+            for domain in config.dnsTestDomains {
+                print("   • \(domain)")
+            }
         }
         else {
             print("📝 Configuration file does not exist")
@@ -256,7 +317,12 @@ struct YouUpCLI: AsyncParsableCommand {
                 print("   • \(endpoint)")
             }
             print()
-            print("💡 You can edit this file to customize the internet test endpoints")
+            print("� Sample DNS test domains:")
+            for domain in sampleConfig.dnsTestDomains {
+                print("   • \(domain)")
+            }
+            print()
+            print("�� You can edit this file to customize the internet test endpoints and DNS test domains")
         }
     }
 }

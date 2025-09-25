@@ -1,6 +1,6 @@
 # you-up
 
-A Swift package that provides network reachability checking for both internet and gateway connectivity. The main differentiator of `you-up` is its ability to diagnose whether network issues are local (gateway/router problems) or external (internet connectivity problems).
+A Swift package that provides comprehensive network reachability checking for gateway, internet, and DNS connectivity. The main differentiator of `you-up` is its ability to diagnose whether network issues are local (gateway/router problems), DNS-related, or external (internet connectivity problems).
 
 ## Overview
 
@@ -8,9 +8,10 @@ This project provides a comprehensive network diagnostic tool with:
 
 - **Gateway/Router reachability checking**: Determines if your local router is responding
 - **Internet connectivity testing**: Tests connectivity to multiple reliable endpoints
-- **Smart diagnosis**: Helps identify whether issues are local network or ISP/WAN related
+- **DNS resolution testing**: Verifies DNS resolution capability with configurable test domains
+- **Smart diagnosis**: Helps identify whether issues are local network, DNS, or ISP/WAN related
 - **Multiple output formats**: Human-readable and JSON output options
-- **Configurable endpoints**: Customize internet test endpoints via JSON configuration
+- **Configurable endpoints**: Customize internet test endpoints and DNS test domains via JSON configuration
 - **Swift 6.0 with strict concurrency**: Modern, safe Swift code
 - **macOS 15+ support**: Native macOS networking capabilities
 
@@ -19,6 +20,7 @@ This project provides a comprehensive network diagnostic tool with:
 Perfect for troubleshooting network connectivity issues:
 
 - **Local Network Issues**: Can't reach your router/gateway
+- **DNS Resolution Problems**: Domain names not resolving to IP addresses
 - **ISP/WAN Problems**: Router works but no internet access
 - **Service-Specific Issues**: Internet works but specific services don't
 - **Network Monitoring**: Automated connectivity monitoring scripts
@@ -53,22 +55,30 @@ import you_up
 
 let checker = NetworkChecker()
 
-// Check both gateway and internet
+// Check gateway, internet, and DNS
 let status = await checker.checkNetworkStatus()
 print("Gateway: \(status.gateway)")
 print("Internet: \(status.internet)")
+print("DNS: \(status.dns)")
 
-// Check just internet connectivity
+// Check individual components
 let internetStatus = await checker.checkInternetReachability()
 print("Internet: \(internetStatus)")
 
-// Check just gateway connectivity
 let gatewayStatus = await checker.checkGatewayReachability()
 print("Gateway: \(gatewayStatus)")
 
-// Get configured internet test endpoints
+let dnsStatus = await checker.checkDNSReachability()
+print("DNS: \(dnsStatus)")
+
+// Get configuration information
 let endpoints = checker.getConfiguredEndpoints()
+let dnsTestDomains = checker.getConfiguredDNSTestDomains()
+let dnsServers = checker.getDNSServers()
+
 print("Testing endpoints: \(endpoints)")
+print("DNS test domains: \(dnsTestDomains)")
+print("DNS servers: \(dnsServers)")
 ```
 
 ### Command Line Interface
@@ -76,15 +86,16 @@ print("Testing endpoints: \(endpoints)")
 #### Basic Usage
 
 ```bash
-# Check both gateway and internet connectivity
+# Check gateway, internet, and DNS connectivity
 swift run you-up-cli
 
 # Output:
 # ✅ Gateway/Router: reachable (15ms)
 # ✅ Internet: reachable (45ms)
+# ✅ DNS: reachable (12ms)
 #
 # 📊 Network Diagnosis:
-#    🎉 All systems operational - full internet connectivity
+#    🎉 All systems operational - full network connectivity
 ```
 
 #### Advanced Options
@@ -98,6 +109,9 @@ swift run you-up-cli --internet-only
 
 # Check only gateway connectivity
 swift run you-up-cli --gateway-only
+
+# Check only DNS resolution
+swift run you-up-cli --dns-only
 
 # JSON output for scripting
 swift run you-up-cli --json
@@ -117,7 +131,7 @@ swift run you-up-cli --json
 
 ```json
 {
-  "timestamp": "2024-09-25T10:30:45Z",
+  "timestamp": "2025-09-25T10:30:45Z",
   "gateway": {
     "status": "reachable (15ms)",
     "reachable": true
@@ -125,15 +139,19 @@ swift run you-up-cli --json
   "internet": {
     "status": "reachable (45ms)",
     "reachable": true
+  },
+  "dns": {
+    "status": "reachable (12ms)",
+    "reachable": true
   }
 }
 ```
 
 ## Configuration
 
-### Internet Test Endpoints
+### Internet Test Endpoints and DNS Test Domains
 
-You can customize the endpoints used for internet connectivity testing by creating a configuration file. The tool follows the XDG Base Directory specification for configuration file placement.
+You can customize both the endpoints used for internet connectivity testing and the domains used for DNS resolution testing by creating a configuration file. The tool follows the XDG Base Directory specification for configuration file placement.
 
 #### Configuration File Locations
 
@@ -144,7 +162,7 @@ The tool checks for configuration files in the following order:
 
 #### Sample Configuration
 
-Create an `endpoints.json` file with your preferred test endpoints:
+Create an `endpoints.json` file with your preferred test endpoints and DNS domains:
 
 ```json
 {
@@ -153,6 +171,12 @@ Create an `endpoints.json` file with your preferred test endpoints:
     "https://1.1.1.1",
     "https://httpbin.org/get",
     "https://example.com"
+  ],
+  "dnsTestDomains": [
+    "google.com",
+    "cloudflare.com",
+    "example.com",
+    "apple.com"
   ]
 }
 ```
@@ -164,18 +188,22 @@ Create an `endpoints.json` file with your preferred test endpoints:
 swift run you-up-cli --show-config
 ```
 
-If no configuration file exists, the tool will fall back to the built-in default endpoints. The `--show-config` command will display the configuration file path and create a sample configuration file if one doesn't exist.
+If no configuration file exists, the tool will fall back to the built-in default endpoints and DNS test domains. The `--show-config` command will display the configuration file path and create a sample configuration file if one doesn't exist.
 
 ## Network Diagnosis Logic
 
-The tool provides intelligent diagnosis based on the combination of gateway and internet reachability:
+The tool provides intelligent diagnosis based on the combination of gateway, internet, and DNS reachability:
 
-| Gateway | Internet | Diagnosis |
-|---------|----------|-----------|
-| ✅ Reachable | ✅ Reachable | 🎉 All systems operational |
-| ✅ Reachable | ❌ Unreachable | ⚠️ Local network OK, ISP/WAN issue |
-| ❌ Unreachable | ✅ Reachable | 🤔 Unusual - check router config |
-| ❌ Unreachable | ❌ Unreachable | 🚫 No network connectivity |
+| Gateway | Internet | DNS | Diagnosis |
+|---------|----------|-----|-----------|
+| ✅ | ✅ | ✅ | 🎉 All systems operational |
+| ✅ | ✅ | ❌ | ⚠️ DNS issues - try changing DNS servers |
+| ✅ | ❌ | ✅ | ⚠️ ISP/WAN issue - internet unreachable |
+| ✅ | ❌ | ❌ | ⚠️ ISP issues affecting connectivity and DNS |
+| ❌ | ✅ | ✅ | 🤔 Unusual - check router configuration |
+| ❌ | ✅ | ❌ | 🤔 Very unusual - check network settings |
+| ❌ | ❌ | ✅ | ⚠️ Check cables, WiFi, and router |
+| ❌ | ❌ | ❌ | 🚫 No network connectivity |
 
 ## Development
 
@@ -229,6 +257,17 @@ The tool tests internet connectivity by making HTTP HEAD requests to multiple re
 - `https://httpbin.org/get` (HTTP testing service)
 
 These endpoints can be customized using a JSON configuration file (see Configuration section above). The tool tests all configured endpoints and considers internet connectivity successful if any endpoint responds successfully.
+
+### DNS Resolution Testing
+
+The tool tests DNS resolution by attempting to resolve multiple test domains to IP addresses. By default, it uses:
+
+- `google.com` (Reliable, globally distributed)
+- `cloudflare.com` (Good DNS infrastructure)
+- `example.com` (Designed for testing)
+- `apple.com` (Relevant for macOS users)
+
+The DNS test domains can be customized using the same JSON configuration file. The tool considers DNS resolution successful if any test domain resolves successfully. The test also discovers and displays the DNS servers configured on your system.
 
 ### Gateway Detection
 
