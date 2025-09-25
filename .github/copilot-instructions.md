@@ -4,23 +4,24 @@ Last updated: 2025-09-25
 
 ## Project Overview
 
-This is a Swift package project named "you-up" that provides network reachability checking capabilities for both internet and gateway connectivity. The project uses Swift 6.0 with strict concurrency enabled and targets macOS 15+.
+This is a Swift package project named "you-up" that provides network reachability checking capabilities for gateway, internet, and DNS connectivity. The project uses Swift 6.0 with strict concurrency enabled and targets macOS 15+.
 
-The main differentiator of `you-up` is its ability to diagnose whether network issues are local (gateway/router problems) or external (internet connectivity problems), making it an excellent tool for network troubleshooting.
+The main differentiator of `you-up` is its ability to diagnose whether network issues are local (gateway/router problems), DNS-related (domain resolution issues), or external (internet connectivity problems), making it an excellent tool for comprehensive network troubleshooting.
 
 ## Project Structure
 
 - **Library Target (`you-up`)**: Core network checking functionality in `Sources/you-up/`
-  - `NetworkChecker.swift`: Main class with gateway and internet reachability checking
+  - `NetworkChecker.swift`: Main class with gateway, internet, and DNS reachability checking
   - `NetworkStatus` and `ReachabilityStatus`: Data structures for network state
-  - `EndpointsConfiguration` and `ConfigurationLoader`: Configuration system for customizable internet test endpoints
+  - `EndpointsConfiguration` and `ConfigurationLoader`: Configuration system for customizable internet test endpoints and DNS test domains
+  - `DNSServerInfo`: Data structure for DNS server information
 - **CLI Target (`you-up-cli`)**: Command-line interface in `Sources/you-up-cli/`
   - Provides human-readable output with smart network diagnosis
   - JSON output option for scripting and automation
-  - Multiple checking modes (gateway-only, internet-only, or both)
+  - Multiple checking modes (gateway-only, internet-only, dns-only, or all)
   - Configuration management (--show-config flag)
 - **Dependencies**: Swift Argument Parser for CLI functionality
-- **Configuration**: Supports user-configurable internet test endpoints via JSON file
+- **Configuration**: Supports user-configurable internet test endpoints and DNS test domains via JSON file
 
 ## Development Guidelines
 
@@ -96,11 +97,14 @@ swift run you-up-cli
 # Verbose output with details
 swift run you-up-cli --verbose
 
-# Check only internet (skip gateway)
+# Check only internet (skip gateway and DNS)
 swift run you-up-cli --internet-only
 
-# Check only gateway (skip internet)
+# Check only gateway (skip internet and DNS)
 swift run you-up-cli --gateway-only
+
+# Check only DNS (skip gateway and internet)
+swift run you-up-cli --dns-only
 
 # JSON output for scripting
 swift run you-up-cli --json
@@ -124,6 +128,12 @@ The tool supports configurable internet test endpoints through JSON configuratio
     "https://1.1.1.1",
     "https://httpbin.org/get",
     "https://example.com"
+  ],
+  "dnsTestDomains": [
+    "google.com",
+    "cloudflare.com",
+    "example.com",
+    "apple.com"
   ]
 }
 ```
@@ -186,3 +196,18 @@ swift test
   - Updated library usage examples to include `getConfiguredEndpoints()` method
   - Enhanced technical details section to explain configurable endpoint behavior
   - Updated project structure section to reflect current state with copilot instructions
+
+- **2025-09-25**: Implemented DNS resolution testing as third reachability type
+  - Added `DNSServerInfo` data structure for DNS server information
+  - Extended `NetworkStatus` to include DNS reachability status
+  - Extended `EndpointsConfiguration` to support configurable DNS test domains with defaults (google.com, cloudflare.com, example.com, apple.com)
+  - Implemented `checkDNSReachability()` method using HTTP-based DNS resolution testing
+  - Added `getDNSServers()` method to discover system DNS servers from router/system settings
+  - Added `getConfiguredDNSTestDomains()` method to expose configured DNS test domains
+  - Updated CLI with `--dns-only` flag for isolated DNS testing
+  - Enhanced verbose output to show DNS servers and test domains
+  - Updated JSON output to include DNS status information
+  - Expanded network diagnosis logic to handle 8 combinations of gateway/internet/DNS states
+  - Updated `--show-config` to display both internet endpoints and DNS test domains
+  - Updated README.md with comprehensive DNS functionality documentation
+  - Updated copilot instructions with DNS testing guidelines and current project state
