@@ -178,3 +178,11 @@ swift test
   - Implemented automatic fallback to default endpoints when configuration file is missing or invalid
   - Added proper error handling for configuration loading and directory creation
   - Updated copilot instructions with configuration management documentation and examples
+
+- **2025-09-25**: Updated README.md with configurable endpoints documentation
+  - Added configuration section explaining XDG Base Directory specification compliance
+  - Documented configuration file locations and JSON format
+  - Added `--show-config` CLI option to usage examples
+  - Updated library usage examples to include `getConfiguredEndpoints()` method
+  - Enhanced technical details section to explain configurable endpoint behavior
+  - Updated project structure section to reflect current state with copilot instructions

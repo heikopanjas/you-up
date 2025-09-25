@@ -10,6 +10,7 @@ This project provides a comprehensive network diagnostic tool with:
 - **Internet connectivity testing**: Tests connectivity to multiple reliable endpoints
 - **Smart diagnosis**: Helps identify whether issues are local network or ISP/WAN related
 - **Multiple output formats**: Human-readable and JSON output options
+- **Configurable endpoints**: Customize internet test endpoints via JSON configuration
 - **Swift 6.0 with strict concurrency**: Modern, safe Swift code
 - **macOS 15+ support**: Native macOS networking capabilities
 
@@ -64,6 +65,10 @@ print("Internet: \(internetStatus)")
 // Check just gateway connectivity
 let gatewayStatus = await checker.checkGatewayReachability()
 print("Gateway: \(gatewayStatus)")
+
+// Get configured internet test endpoints
+let endpoints = checker.getConfiguredEndpoints()
+print("Testing endpoints: \(endpoints)")
 ```
 
 ### Command Line Interface
@@ -97,6 +102,9 @@ swift run you-up-cli --gateway-only
 # JSON output for scripting
 swift run you-up-cli --json
 
+# Show current configuration and create sample if needed
+swift run you-up-cli --show-config
+
 # Get help
 swift run you-up-cli --help
 ```
@@ -120,6 +128,43 @@ swift run you-up-cli --json
   }
 }
 ```
+
+## Configuration
+
+### Internet Test Endpoints
+
+You can customize the endpoints used for internet connectivity testing by creating a configuration file. The tool follows the XDG Base Directory specification for configuration file placement.
+
+#### Configuration File Locations
+
+The tool checks for configuration files in the following order:
+
+1. `$XDG_CONFIG_HOME/you-up/endpoints.json` (if `XDG_CONFIG_HOME` environment variable is set)
+2. `$HOME/.config/you-up/endpoints.json` (fallback location)
+
+#### Sample Configuration
+
+Create an `endpoints.json` file with your preferred test endpoints:
+
+```json
+{
+  "endpoints": [
+    "https://dns.google",
+    "https://1.1.1.1",
+    "https://httpbin.org/get",
+    "https://example.com"
+  ]
+}
+```
+
+#### Configuration Management
+
+```bash
+# Show current configuration path and create sample configuration if needed
+swift run you-up-cli --show-config
+```
+
+If no configuration file exists, the tool will fall back to the built-in default endpoints. The `--show-config` command will display the configuration file path and create a sample configuration file if one doesn't exist.
 
 ## Network Diagnosis Logic
 
@@ -164,22 +209,26 @@ swift run you-up-cli [options]
 you-up/
 ├── Sources/
 │   ├── you-up/              # Library code
-│   │   └── NetworkChecker.swift
+│   │   └── NetworkChecker.swift # Network checking functionality with configuration support
 │   └── you-up-cli/          # CLI executable
-│       └── main.swift
+│       └── main.swift       # Command-line interface with configuration management
 ├── Package.swift            # Swift Package Manager configuration
-└── README.md               # This file
+├── README.md               # This file
+└── .github/
+    └── copilot-instructions.md # Development guidelines and project documentation
 ```
 
 ## Technical Details
 
 ### Internet Connectivity Testing
 
-The tool tests internet connectivity by making HTTP HEAD requests to multiple reliable endpoints:
+The tool tests internet connectivity by making HTTP HEAD requests to multiple reliable endpoints. By default, it uses:
 
 - `https://dns.google` (Google DNS over HTTPS)
 - `https://1.1.1.1` (Cloudflare DNS)
 - `https://httpbin.org/get` (HTTP testing service)
+
+These endpoints can be customized using a JSON configuration file (see Configuration section above). The tool tests all configured endpoints and considers internet connectivity successful if any endpoint responds successfully.
 
 ### Gateway Detection
 
