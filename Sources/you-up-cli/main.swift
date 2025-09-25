@@ -39,6 +39,7 @@ struct YouUpCLI: AsyncParsableCommand {
     private func runHumanOutput(checker: NetworkChecker) async {
         if verbose {
             print("🔍 Checking network connectivity...")
+            await printVerboseNetworkInfo(checker: checker, mode: getTestMode())
             print()
         }
 
@@ -57,6 +58,94 @@ struct YouUpCLI: AsyncParsableCommand {
 
             print()
             printSummary(gateway: status.gateway, internet: status.internet)
+        }
+    }
+
+    private enum TestMode {
+        case gatewayOnly
+        case internetOnly
+        case both
+    }
+
+    private func getTestMode() -> TestMode {
+        if gatewayOnly {
+            return .gatewayOnly
+        }
+        else if internetOnly {
+            return .internetOnly
+        }
+        else {
+            return .both
+        }
+    }
+
+    private func printVerboseNetworkInfo(checker: NetworkChecker, mode: TestMode) async {
+        let routers = checker.getActiveRouters()
+
+        // Filter out interfaces that only have fe80:: (link-local) router addresses
+        let meaningfulRouters = routers.filter { router in
+            // Include if it has an IPv4 router
+            if router.ipv4 != nil {
+                return true
+            }
+            // Include if it has an IPv6 router that's not just fe80::
+            if let ipv6 = router.ipv6, ipv6 != "fe80::" {
+                return true
+            }
+            // Exclude interfaces with only fe80:: or no routers
+            return false
+        }
+
+        // Show active network interfaces (always show for context)
+        if !meaningfulRouters.isEmpty {
+            print("📡 Active Network Interfaces:")
+            for router in meaningfulRouters {
+                print("  \(router.mediaType.emoji) \(router.interface) (\(router.mediaType.rawValue))")
+            }
+            print()
+        }
+
+        // Show router addresses only for gateway-only and both modes
+        if mode == .gatewayOnly || mode == .both {
+            // Collect and deduplicate router addresses
+            var uniqueRouters = Set<String>()
+            for router in meaningfulRouters {
+                if let ipv4 = router.ipv4 {
+                    uniqueRouters.insert(ipv4)
+                }
+                if let ipv6 = router.ipv6, ipv6 != "fe80::" {
+                    uniqueRouters.insert(ipv6)
+                }
+            }
+
+            if !uniqueRouters.isEmpty {
+                print("🏠 Router Addresses:")
+                let sortedRouters = uniqueRouters.sorted()
+                for routerAddress in sortedRouters {
+                    // Determine if it's IPv4 or IPv6
+                    if routerAddress.contains(":") {
+                        print("  • \(routerAddress) (IPv6)")
+                    }
+                    else {
+                        print("  • \(routerAddress) (IPv4)")
+                    }
+                }
+                print()
+            }
+        }
+
+        // Show internet test endpoints only for internet-only and both modes
+        if mode == .internetOnly || mode == .both {
+            print("🌐 Internet Test Endpoints:")
+            for endpoint in NetworkChecker.internetTestEndpoints {
+                if let url = URL(string: endpoint), let host = url.host {
+                    print("  • \(endpoint) (\(host))")
+                }
+                else {
+                    print("  • \(endpoint)")
+                }
+            }
+            print()
         }
     }
 

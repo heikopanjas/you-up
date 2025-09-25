@@ -5,11 +5,50 @@ import Foundation
 import Network
 import SystemConfiguration
 
+/// Represents the media type of a network interface
+public enum NetworkMediaType: String, CaseIterable {
+    case ethernet = "Ethernet"
+    case wifi = "Wi-Fi"
+    case cellular = "Cellular"
+    case bluetooth = "Bluetooth"
+    case thunderbolt = "Thunderbolt"
+    case usb = "USB"
+    case firewire = "FireWire"
+    case bridge = "Bridge"
+    case tunnel = "Tunnel"
+    case loopback = "Loopback"
+    case unknown = "Unknown"
+
+    public var emoji: String {
+        switch self {
+            case .ethernet: return "🔌"
+            case .wifi: return "📶"
+            case .cellular: return "📱"
+            case .bluetooth: return "🔵"
+            case .thunderbolt: return "⚡"
+            case .usb: return "🔌"
+            case .firewire: return "🔥"
+            case .bridge: return "🌉"
+            case .tunnel: return "🚇"
+            case .loopback: return "🔄"
+            case .unknown: return "❓"
+        }
+    }
+}
+
 /// Represents router addresses for a network interface
-struct RouterAddresses {
-    let interface: String
-    let ipv4: String?
-    let ipv6: String?
+public struct RouterAddresses {
+    public let interface: String
+    public let ipv4: String?
+    public let ipv6: String?
+    public let mediaType: NetworkMediaType
+
+    public init(interface: String, ipv4: String?, ipv6: String?, mediaType: NetworkMediaType) {
+        self.interface = interface
+        self.ipv4 = ipv4
+        self.ipv6 = ipv6
+        self.mediaType = mediaType
+    }
 }
 
 /// Represents the reachability status of different network components
@@ -60,7 +99,20 @@ public enum ReachabilityStatus: Sendable, CustomStringConvertible {
 
 /// Main class for checking network reachability
 public final class NetworkChecker: Sendable {
+
+    /// Internet test endpoints used for connectivity checking
+    public static let internetTestEndpoints = [
+        "https://dns.google",  // Google DNS over HTTPS
+        "https://1.1.1.1",  // Cloudflare DNS
+        "https://httpbin.org/get"  // Simple HTTP endpoint
+    ]
+
     public init() {}
+
+    /// Get all active router addresses for network interfaces
+    public func getActiveRouters() -> [RouterAddresses] {
+        return getAllRouterAddresses()
+    }
 
     /// Check both gateway and internet reachability
     public func checkNetworkStatus() async -> NetworkStatus {
@@ -84,14 +136,8 @@ public final class NetworkChecker: Sendable {
 
     /// Check if general internet is reachable (using multiple reliable endpoints)
     public func checkInternetReachability() async -> ReachabilityStatus {
-        let testHosts = [
-            "https://dns.google",  // Google DNS over HTTPS
-            "https://1.1.1.1",  // Cloudflare DNS
-            "https://httpbin.org/get"  // Simple HTTP endpoint
-        ]
-
         // Try each host and return the first successful result
-        for host in testHosts {
+        for host in Self.internetTestEndpoints {
             let result = await httpCheck(url: host)
             if result.isReachable {
                 return result
@@ -180,6 +226,128 @@ public final class NetworkChecker: Sendable {
         return nil
     }
 
+    /// Determine the media type of a network interface
+    private func getInterfaceMediaType(_ interfaceName: String) -> NetworkMediaType {
+        // First try to get detailed information from SystemConfiguration
+        if let detailedType = getDetailedInterfaceType(interfaceName) {
+            return detailedType
+        }
+
+        // Fall back to interface naming patterns on macOS
+        if interfaceName.starts(with: "en") {
+            // en0, en1, etc. - default to ethernet if we can't determine specifics
+            return .ethernet
+        }
+        else if interfaceName.starts(with: "wi") || interfaceName.starts(with: "wl") {
+            return .wifi
+        }
+        else if interfaceName.starts(with: "pdp_ip") || interfaceName.starts(with: "cellular") {
+            return .cellular
+        }
+        else if interfaceName.starts(with: "utun") || interfaceName.starts(with: "tun") {
+            return .tunnel
+        }
+        else if interfaceName.starts(with: "bridge") {
+            return .bridge
+        }
+        else if interfaceName.starts(with: "lo") {
+            return .loopback
+        }
+        else if interfaceName.starts(with: "fw") {
+            return .firewire
+        }
+        else if interfaceName.starts(with: "usb") {
+            return .usb
+        }
+        else if interfaceName.starts(with: "thunderbolt") {
+            return .thunderbolt
+        }
+        else {
+            return .unknown
+        }
+    }
+
+    /// Get detailed interface type using SystemConfiguration
+    private func getDetailedInterfaceType(_ interfaceName: String) -> NetworkMediaType? {
+        guard let dynamicStore = SCDynamicStoreCreate(nil, "GetInterfaceType" as CFString, nil, nil) else {
+            return nil
+        }
+
+        // Try to get the service name and user-defined name
+        let servicesPattern = "Setup:/Network/Service/[^/]+/Interface" as CFString
+        guard let serviceKeys = SCDynamicStoreCopyKeyList(dynamicStore, servicesPattern) as? [String] else {
+            return nil
+        }
+
+        for serviceKey in serviceKeys {
+            guard let serviceInfo = SCDynamicStoreCopyValue(dynamicStore, serviceKey as CFString) as? [String: Any],
+                let deviceName = serviceInfo["DeviceName"] as? String,
+                deviceName == interfaceName
+            else {
+                continue
+            }
+
+            // Get the service ID from the key path
+            let keyComponents = serviceKey.components(separatedBy: "/")
+            guard keyComponents.count >= 4 else { continue }
+            let serviceID = keyComponents[3]
+
+            // Check the service setup for user-defined name
+            let serviceSetupKey = "Setup:/Network/Service/\(serviceID)"
+            if let serviceSetup = SCDynamicStoreCopyValue(dynamicStore, serviceSetupKey as CFString) as? [String: Any],
+                let userDefinedName = serviceSetup["UserDefinedName"] as? String
+            {
+
+                // Use the user-defined name to determine interface type
+                let lowercaseName = userDefinedName.lowercased()
+
+                if lowercaseName.contains("wi-fi") || lowercaseName.contains("wifi") || lowercaseName.contains("airport") {
+                    return .wifi
+                }
+                else if lowercaseName.contains("thunderbolt") {
+                    return .thunderbolt
+                }
+                else if lowercaseName.contains("ethernet") {
+                    return .ethernet
+                }
+                else if lowercaseName.contains("usb") {
+                    return .usb
+                }
+                else if lowercaseName.contains("bluetooth") {
+                    return .bluetooth
+                }
+                else if lowercaseName.contains("cellular") || lowercaseName.contains("mobile") {
+                    return .cellular
+                }
+            }
+
+            // Also check the hardware type
+            if let hardware = serviceInfo["Hardware"] as? String {
+                let lowercaseHardware = hardware.lowercased()
+                if lowercaseHardware.contains("airport") || lowercaseHardware.contains("wifi") {
+                    return .wifi
+                }
+                else if lowercaseHardware.contains("ethernet") {
+                    return .ethernet
+                }
+            }
+        }
+
+        // Also try the link information
+        let interfaceKey = "State:/Network/Interface/\(interfaceName)/Link" as CFString
+        if let linkInfo = SCDynamicStoreCopyValue(dynamicStore, interfaceKey) as? [String: Any],
+            let active = linkInfo["Active"] as? Bool, active
+        {
+
+            // Check for Wi-Fi specific indicators
+            if linkInfo["SSID"] != nil {
+                return .wifi
+            }
+        }
+
+        return nil
+    }
+
     /// Get all router addresses for active network interfaces
     private func getAllRouterAddresses() -> [RouterAddresses] {
         var routerDict: [String: RouterAddresses] = [:]
@@ -202,7 +370,8 @@ public final class NetworkChecker: Sendable {
                 routerDict[interfaceName] = RouterAddresses(
                     interface: interfaceName,
                     ipv4: routerIP,
-                    ipv6: nil
+                    ipv6: nil,
+                    mediaType: getInterfaceMediaType(interfaceName)
                 )
             }
         }
@@ -222,14 +391,16 @@ public final class NetworkChecker: Sendable {
                     routerDict[interfaceName] = RouterAddresses(
                         interface: interfaceName,
                         ipv4: existing.ipv4,
-                        ipv6: routerIP
+                        ipv6: routerIP,
+                        mediaType: existing.mediaType
                     )
                 }
                 else {
                     routerDict[interfaceName] = RouterAddresses(
                         interface: interfaceName,
                         ipv4: nil,
-                        ipv6: routerIP
+                        ipv6: routerIP,
+                        mediaType: getInterfaceMediaType(interfaceName)
                     )
                 }
             }
