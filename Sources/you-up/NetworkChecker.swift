@@ -5,6 +5,93 @@ import Foundation
 import Network
 import SystemConfiguration
 
+/// Configuration for internet test endpoints
+public struct EndpointsConfiguration: Codable, Sendable {
+    public let endpoints: [String]
+
+    public init(endpoints: [String]) {
+        self.endpoints = endpoints
+    }
+
+    /// Default configuration with reliable endpoints
+    public static let `default` = EndpointsConfiguration(endpoints: [
+        "https://dns.google",  // Google DNS over HTTPS
+        "https://1.1.1.1",  // Cloudflare DNS
+        "https://httpbin.org/get"  // Simple HTTP endpoint
+    ])
+}
+
+/// Configuration loader for you-up settings
+public struct ConfigurationLoader {
+
+    /// Load endpoints configuration from the user's config directory
+    /// Checks $XDG_CONFIG_HOME/you-up/endpoints.json first, then falls back to $HOME/.config/you-up/endpoints.json
+    public static func loadEndpointsConfiguration() -> EndpointsConfiguration {
+        let configPath = getConfigFilePath()
+
+        guard let configPath = configPath,
+            FileManager.default.fileExists(atPath: configPath),
+            let data = try? Data(contentsOf: URL(fileURLWithPath: configPath)),
+            let config = try? JSONDecoder().decode(EndpointsConfiguration.self, from: data)
+        else {
+            return .default
+        }
+
+        // Validate that we have at least one endpoint
+        guard !config.endpoints.isEmpty else {
+            return .default
+        }
+
+        return config
+    }
+
+    /// Get the path to the endpoints configuration file
+    private static func getConfigFilePath() -> String? {
+        let configDir: String
+
+        // Check XDG_CONFIG_HOME first
+        if let xdgConfigHome = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] {
+            configDir = "\(xdgConfigHome)/you-up"
+        }
+        else {
+            // Fallback to ~/.config/you-up
+            guard let homeDir = ProcessInfo.processInfo.environment["HOME"] else {
+                return nil
+            }
+            configDir = "\(homeDir)/.config/you-up"
+        }
+
+        return "\(configDir)/endpoints.json"
+    }
+
+    /// Create a sample configuration file at the config path
+    public static func createSampleConfiguration() throws {
+        guard let configPath = getConfigFilePath() else {
+            throw ConfigurationError.cannotDetermineConfigPath
+        }
+
+        let configDir = URL(fileURLWithPath: configPath).deletingLastPathComponent().path
+        try FileManager.default.createDirectory(atPath: configDir, withIntermediateDirectories: true, attributes: nil)
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(EndpointsConfiguration.default)
+        try data.write(to: URL(fileURLWithPath: configPath))
+    }
+}
+
+/// Configuration-related errors
+public enum ConfigurationError: Error, LocalizedError {
+    case cannotDetermineConfigPath
+
+    public var errorDescription: String? {
+        switch self {
+            case .cannotDetermineConfigPath:
+                return "Cannot determine configuration directory path"
+        }
+    }
+}
+
 /// Represents the media type of a network interface
 public enum NetworkMediaType: String, CaseIterable {
     case ethernet = "Ethernet"
@@ -100,18 +187,28 @@ public enum ReachabilityStatus: Sendable, CustomStringConvertible {
 /// Main class for checking network reachability
 public final class NetworkChecker: Sendable {
 
-    /// Internet test endpoints used for connectivity checking
-    public static let internetTestEndpoints = [
+    /// Default internet test endpoints (used as fallback)
+    public static let defaultInternetTestEndpoints = [
         "https://dns.google",  // Google DNS over HTTPS
         "https://1.1.1.1",  // Cloudflare DNS
         "https://httpbin.org/get"  // Simple HTTP endpoint
     ]
 
-    public init() {}
+    /// The endpoints configuration to use for internet connectivity testing
+    private let endpointsConfig: EndpointsConfiguration
+
+    public init(endpointsConfig: EndpointsConfiguration? = nil) {
+        self.endpointsConfig = endpointsConfig ?? ConfigurationLoader.loadEndpointsConfiguration()
+    }
 
     /// Get all active router addresses for network interfaces
     public func getActiveRouters() -> [RouterAddresses] {
         return getAllRouterAddresses()
+    }
+
+    /// Get the currently configured internet test endpoints
+    public func getConfiguredEndpoints() -> [String] {
+        return endpointsConfig.endpoints
     }
 
     /// Check both gateway and internet reachability
@@ -134,10 +231,10 @@ public final class NetworkChecker: Sendable {
         return await ping(host: gatewayIP)
     }
 
-    /// Check if general internet is reachable (using multiple reliable endpoints)
+    /// Check if general internet is reachable (using configured endpoints)
     public func checkInternetReachability() async -> ReachabilityStatus {
         // Try each host and return the first successful result
-        for host in Self.internetTestEndpoints {
+        for host in endpointsConfig.endpoints {
             let result = await httpCheck(url: host)
             if result.isReachable {
                 return result

@@ -25,7 +25,15 @@ struct YouUpCLI: AsyncParsableCommand {
     @Flag(name: [.short, .long], help: "Output results in JSON format.")
     var json: Bool = false
 
+    @Flag(name: [.long], help: "Show configuration file path and create a sample configuration if none exists.")
+    var showConfig: Bool = false
+
     mutating func run() async throws {
+        if showConfig {
+            try showConfigurationInfo()
+            return
+        }
+
         let checker = NetworkChecker()
 
         if json {
@@ -137,7 +145,7 @@ struct YouUpCLI: AsyncParsableCommand {
         // Show internet test endpoints only for internet-only and both modes
         if mode == .internetOnly || mode == .both {
             print("🌐 Internet Test Endpoints:")
-            for endpoint in NetworkChecker.internetTestEndpoints {
+            for endpoint in checker.getConfiguredEndpoints() {
                 if let url = URL(string: endpoint), let host = url.host {
                     print("  • \(endpoint) (\(host))")
                 }
@@ -196,6 +204,59 @@ struct YouUpCLI: AsyncParsableCommand {
             case (false, false):
                 print("   🚫 No network connectivity detected")
                 print("   💡 Check your network cables, WiFi connection, and router")
+        }
+    }
+
+    private func showConfigurationInfo() throws {
+        print("📋 Configuration Information")
+        print()
+
+        // Get config path
+        let configPath: String?
+        if let xdgConfigHome = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"] {
+            configPath = "\(xdgConfigHome)/you-up/endpoints.json"
+        }
+        else if let homeDir = ProcessInfo.processInfo.environment["HOME"] {
+            configPath = "\(homeDir)/.config/you-up/endpoints.json"
+        }
+        else {
+            configPath = nil
+        }
+
+        guard let configPath = configPath else {
+            print("❌ Cannot determine configuration directory path")
+            return
+        }
+
+        print("📁 Configuration file path:")
+        print("   \(configPath)")
+        print()
+
+        if FileManager.default.fileExists(atPath: configPath) {
+            print("✅ Configuration file exists")
+
+            // Load and display current configuration
+            let config = ConfigurationLoader.loadEndpointsConfiguration()
+            print("🌐 Configured endpoints:")
+            for endpoint in config.endpoints {
+                print("   • \(endpoint)")
+            }
+        }
+        else {
+            print("📝 Configuration file does not exist")
+            print("   Creating sample configuration...")
+
+            try ConfigurationLoader.createSampleConfiguration()
+            print("✅ Sample configuration created at:")
+            print("   \(configPath)")
+            print()
+            print("📖 Sample configuration contains:")
+            let sampleConfig = EndpointsConfiguration.default
+            for endpoint in sampleConfig.endpoints {
+                print("   • \(endpoint)")
+            }
+            print()
+            print("💡 You can edit this file to customize the internet test endpoints")
         }
     }
 }

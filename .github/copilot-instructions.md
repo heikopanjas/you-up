@@ -1,6 +1,6 @@
 # Copilot Instructions for you-up
 
-Last updated: 2024-09-25
+Last updated: 2025-09-25
 
 ## Project Overview
 
@@ -13,11 +13,14 @@ The main differentiator of `you-up` is its ability to diagnose whether network i
 - **Library Target (`you-up`)**: Core network checking functionality in `Sources/you-up/`
   - `NetworkChecker.swift`: Main class with gateway and internet reachability checking
   - `NetworkStatus` and `ReachabilityStatus`: Data structures for network state
+  - `EndpointsConfiguration` and `ConfigurationLoader`: Configuration system for customizable internet test endpoints
 - **CLI Target (`you-up-cli`)**: Command-line interface in `Sources/you-up-cli/`
   - Provides human-readable output with smart network diagnosis
   - JSON output option for scripting and automation
   - Multiple checking modes (gateway-only, internet-only, or both)
+  - Configuration management (--show-config flag)
 - **Dependencies**: Swift Argument Parser for CLI functionality
+- **Configuration**: Supports user-configurable internet test endpoints via JSON file
 
 ## Development Guidelines
 
@@ -45,6 +48,8 @@ The main differentiator of `you-up` is its ability to diagnose whether network i
 - Test multiple endpoints to ensure reliability
 - Provide both synchronous status and latency measurements
 - Handle different failure modes (unreachable, timeout, unknown)
+- Support configurable internet test endpoints through JSON configuration files
+- Follow XDG Base Directory specification for configuration file placement
 
 ### CLI Development
 - Use ArgumentParser for command-line interface
@@ -65,6 +70,7 @@ The main differentiator of `you-up` is its ability to diagnose whether network i
 - Write descriptive but concise commit messages
 - Stage changes before committing
 - NEVER commit automatically - always ask for explicit confirmation
+- NEVER use GitKraken or other GUI tools for git operations - ONLY use traditional git commands
 
 ## Current Issues to Address
 
@@ -98,6 +104,34 @@ swift run you-up-cli --gateway-only
 
 # JSON output for scripting
 swift run you-up-cli --json
+
+# Show configuration and create sample if needed
+swift run you-up-cli --show-config
+```
+
+### Configuration Management
+The tool supports configurable internet test endpoints through JSON configuration:
+
+**Configuration file locations** (checked in order):
+1. `$XDG_CONFIG_HOME/you-up/endpoints.json` (if XDG_CONFIG_HOME is set)
+2. `$HOME/.config/you-up/endpoints.json` (fallback)
+
+**Sample configuration** (`endpoints.json`):
+```json
+{
+  "endpoints": [
+    "https://dns.google",
+    "https://1.1.1.1",
+    "https://httpbin.org/get",
+    "https://example.com"
+  ]
+}
+```
+
+**Configuration commands**:
+```bash
+# Show current configuration and create sample if needed
+swift run you-up-cli --show-config
 ```
 
 ### Running Tests
@@ -132,3 +166,15 @@ swift test
   - Updated README.md with comprehensive documentation for network reachability features
   - Added proper error handling for different network failure modes (unreachable, timeout, unknown)
   - Used modern Swift async/await patterns with proper timeout handling (3-second timeouts)
+
+- **2025-09-25**: Added configurable internet endpoints feature
+  - Implemented `EndpointsConfiguration` struct with Codable and Sendable conformance for configuration management
+  - Added `ConfigurationLoader` class with XDG Base Directory specification support
+  - Configuration file locations: `$XDG_CONFIG_HOME/you-up/endpoints.json` or `$HOME/.config/you-up/endpoints.json`
+  - Modified `NetworkChecker` to use configurable endpoints instead of hardcoded static endpoints
+  - Added `getConfiguredEndpoints()` method to expose current endpoint configuration
+  - Updated CLI to use instance-based endpoint configuration instead of static property
+  - Added `--show-config` CLI flag to display configuration path and create sample configuration
+  - Implemented automatic fallback to default endpoints when configuration file is missing or invalid
+  - Added proper error handling for configuration loading and directory creation
+  - Updated copilot instructions with configuration management documentation and examples
