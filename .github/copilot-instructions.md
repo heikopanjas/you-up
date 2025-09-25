@@ -14,7 +14,7 @@ The main differentiator of `you-up` is its ability to diagnose whether network i
   - `NetworkChecker.swift`: Main orchestration class that coordinates individual checks
   - `NetworkCheck.swift`: Protocol definition for network connectivity checks
   - `GatewayCheck.swift`: Gateway/router connectivity check implementation
-  - `InternetCheck.swift`: Internet connectivity check implementation  
+  - `InternetCheck.swift`: Internet connectivity check implementation
   - `DNSCheck.swift`: DNS resolution check implementation
   - `Configuration.swift`: Configuration system with EndpointsConfiguration, ConfigurationLoader, and ConfigurationError
   - `NetworkStatus` and `ReachabilityStatus`: Data structures for network state
