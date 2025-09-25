@@ -5,6 +5,13 @@ import Foundation
 import Network
 import SystemConfiguration
 
+/// Represents router addresses for a network interface
+struct RouterAddresses {
+    let interface: String
+    let ipv4: String?
+    let ipv6: String?
+}
+
 /// Represents the reachability status of different network components
 public struct NetworkStatus: Sendable {
     public let gateway: ReachabilityStatus
@@ -44,7 +51,9 @@ public enum ReachabilityStatus: Sendable, CustomStringConvertible {
     }
 
     public var isReachable: Bool {
-        if case .reachable = self { return true }
+        if case .reachable = self {
+            return true
+        }
         return false
     }
 }
@@ -150,47 +159,82 @@ public final class NetworkChecker: Sendable {
         }
     }
 
-    /// Get the default gateway IP address
+    /// Get the default gateway IP address using SystemConfiguration
     private func getDefaultGateway() -> String? {
-        var ifaddrs: UnsafeMutablePointer<ifaddrs>? = nil
+        let routerAddresses = getAllRouterAddresses()
 
-        guard getifaddrs(&ifaddrs) == 0 else {
-            return nil
-        }
-
-        defer {
-            freeifaddrs(ifaddrs)
-        }
-
-        // For simplicity, we'll use a system command approach
-        // In a production version, you might want to parse routing table directly
-        let task = Process()
-        task.launchPath = "/sbin/route"
-        task.arguments = ["-n", "get", "default"]
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? ""
-
-            // Parse the gateway IP from route output
-            for line in output.components(separatedBy: .newlines) where line.trimmingCharacters(in: .whitespaces).starts(with: "gateway:") {
-                let components = line.components(separatedBy: .whitespaces)
-                if components.count >= 2 {
-                    return components[1]
-                }
+        // Prefer active interfaces with IPv4 routers, fall back to IPv6
+        for router in routerAddresses {
+            if let ipv4 = router.ipv4 {
+                return ipv4
             }
         }
-        catch {
-            return nil
+
+        // If no IPv4 router found, try IPv6
+        for router in routerAddresses {
+            if let ipv6 = router.ipv6 {
+                return ipv6
+            }
         }
 
         return nil
+    }
+
+    /// Get all router addresses for active network interfaces
+    private func getAllRouterAddresses() -> [RouterAddresses] {
+        var routerDict: [String: RouterAddresses] = [:]
+
+        guard let dynamicStore = SCDynamicStoreCreate(nil, "GetRouterIPs" as CFString, nil, nil) else {
+            return []
+        }
+
+        // Process IPv4
+        let ipv4Pattern = "State:/Network/Service/[^/]+/IPv4" as CFString
+        if let ipv4Services = SCDynamicStoreCopyKeyList(dynamicStore, ipv4Pattern) as? [String] {
+            for serviceKey in ipv4Services {
+                guard let ipv4Info = SCDynamicStoreCopyValue(dynamicStore, serviceKey as CFString) as? [String: Any],
+                    let interfaceName = ipv4Info["InterfaceName"] as? String,
+                    let routerIP = ipv4Info["Router"] as? String
+                else {
+                    continue
+                }
+
+                routerDict[interfaceName] = RouterAddresses(
+                    interface: interfaceName,
+                    ipv4: routerIP,
+                    ipv6: nil
+                )
+            }
+        }
+
+        // Process IPv6
+        let ipv6Pattern = "State:/Network/Service/[^/]+/IPv6" as CFString
+        if let ipv6Services = SCDynamicStoreCopyKeyList(dynamicStore, ipv6Pattern) as? [String] {
+            for serviceKey in ipv6Services {
+                guard let ipv6Info = SCDynamicStoreCopyValue(dynamicStore, serviceKey as CFString) as? [String: Any],
+                    let interfaceName = ipv6Info["InterfaceName"] as? String,
+                    let routerIP = ipv6Info["Router"] as? String
+                else {
+                    continue
+                }
+
+                if let existing = routerDict[interfaceName] {
+                    routerDict[interfaceName] = RouterAddresses(
+                        interface: interfaceName,
+                        ipv4: existing.ipv4,
+                        ipv6: routerIP
+                    )
+                }
+                else {
+                    routerDict[interfaceName] = RouterAddresses(
+                        interface: interfaceName,
+                        ipv4: nil,
+                        ipv6: routerIP
+                    )
+                }
+            }
+        }
+
+        return Array(routerDict.values)
     }
 }
