@@ -6,11 +6,11 @@ import Foundation
 /// Configuration for internet test endpoints
 public struct EndpointsConfiguration: Codable, Sendable {
     public let endpoints: [String]
-    public let dnsTestDomains: [String]
+    public let dnsEndpoints: [String]
 
-    public init(endpoints: [String], dnsTestDomains: [String]? = nil) {
+    public init(endpoints: [String], dnsEndpoints: [String]? = nil) {
         self.endpoints = endpoints
-        self.dnsTestDomains = dnsTestDomains ?? Self.defaultDNSTestDomains
+        self.dnsEndpoints = dnsEndpoints ?? Self.defaultDNSEndpoints
     }
 
     // Custom decoding to handle backward compatibility
@@ -18,12 +18,12 @@ public struct EndpointsConfiguration: Codable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         self.endpoints = try container.decode([String].self, forKey: .endpoints)
-        self.dnsTestDomains = try container.decodeIfPresent([String].self, forKey: .dnsTestDomains) ?? Self.defaultDNSTestDomains
+        self.dnsEndpoints = try container.decodeIfPresent([String].self, forKey: .dnsEndpoints) ?? Self.defaultDNSEndpoints
     }
 
     private enum CodingKeys: String, CodingKey {
         case endpoints
-        case dnsTestDomains
+        case dnsEndpoints
     }
 
     /// Default internet test endpoints
@@ -34,7 +34,7 @@ public struct EndpointsConfiguration: Codable, Sendable {
     ]
 
     /// Default DNS test domains
-    public static let defaultDNSTestDomains = [
+    public static let defaultDNSEndpoints = [
         "google.com",  // Reliable, globally distributed
         "cloudflare.com",  // Good DNS infrastructure
         "example.com",  // Designed for testing
@@ -44,7 +44,7 @@ public struct EndpointsConfiguration: Codable, Sendable {
     /// Default configuration with reliable endpoints
     public static let `default` = EndpointsConfiguration(
         endpoints: defaultInternetEndpoints,
-        dnsTestDomains: defaultDNSTestDomains
+        dnsEndpoints: defaultDNSEndpoints
     )
 }
 

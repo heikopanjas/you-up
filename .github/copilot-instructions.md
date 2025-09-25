@@ -11,7 +11,11 @@ The main differentiator of `you-up` is its ability to diagnose whether network i
 ## Project Structure
 
 - **Library Target (`you-up`)**: Core network checking functionality in `Sources/you-up/`
-  - `NetworkChecker.swift`: Main class with gateway, internet, and DNS reachability checking
+  - `NetworkChecker.swift`: Main orchestration class that coordinates individual checks
+  - `NetworkCheck.swift`: Protocol definition for network connectivity checks
+  - `GatewayCheck.swift`: Gateway/router connectivity check implementation
+  - `InternetCheck.swift`: Internet connectivity check implementation  
+  - `DNSCheck.swift`: DNS resolution check implementation
   - `Configuration.swift`: Configuration system with EndpointsConfiguration, ConfigurationLoader, and ConfigurationError
   - `NetworkStatus` and `ReachabilityStatus`: Data structures for network state
   - `DNSServerInfo`: Data structure for DNS server information
@@ -218,3 +222,13 @@ swift test
   - Maintained all existing functionality and public APIs unchanged
   - Verified successful build and CLI functionality after refactoring
   - Updated copilot instructions to reflect new file structure
+
+- **2025-09-26**: Split NetworkChecks into individual files for better organization
+  - Created separate `NetworkCheck.swift` file for the protocol definition
+  - Created `GatewayCheck.swift` with gateway/router connectivity checking logic
+  - Created `InternetCheck.swift` with internet connectivity checking logic
+  - Created `DNSCheck.swift` with DNS resolution checking logic
+  - Removed consolidated `NetworkChecks.swift` file after extracting all classes
+  - Maintained all existing functionality and public APIs unchanged
+  - Verified successful build and CLI functionality after file separation
+  - Updated copilot instructions to reflect modular file structure
