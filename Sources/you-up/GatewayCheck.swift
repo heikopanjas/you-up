@@ -23,7 +23,7 @@ public final class GatewayCheck: NetworkCheck, Sendable {
             return .unknown
         }
 
-        return await pingGateway(host: gatewayIP)
+        return await networkFrameworkPing(host: gatewayIP)
     }
 
     /// Get available gateway/router addresses
@@ -31,28 +31,101 @@ public final class GatewayCheck: NetworkCheck, Sendable {
         return Self.getAllRouterAddresses()
     }
 
-    /// Ping gateway using HTTP with shorter timeout optimized for local network
-    private func pingGateway(host: String) async -> ReachabilityStatus {
+    /// Ping gateway using Network.framework TCP connection test (preferred method)
+    private func networkFrameworkPing(host: String) async -> ReachabilityStatus {
         let startTime = Date()
-
-        guard let url = URL(string: "http://\(host)") else {
-            return .unreachable
-        }
-
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 1.0  // Shorter timeout for gateway
-        request.httpMethod = "HEAD"
-
-        do {
-            let (_, _) = try await URLSession.shared.data(for: request)
-            let latency = Date().timeIntervalSince(startTime)
-            return .reachable(latency: latency)
-        }
-        catch {
-            if error.localizedDescription.contains("timeout") {
-                return .timeout
+        
+        // Try to connect to common router management ports
+        // Most routers have at least one of these services running
+        let testPorts: [UInt16] = [80, 443, 22, 23, 53]
+        
+        for port in testPorts {
+            let result = await testPortConnectivity(host: host, port: port, startTime: startTime)
+            if case .reachable = result {
+                return result
             }
-            return .unreachable
+        }
+        
+        return .timeout // If no ports responded, consider it a timeout
+    }
+    
+    /// Test connectivity to a specific port
+    private func testPortConnectivity(host: String, port: UInt16, startTime: Date) async -> ReachabilityStatus {
+        return await withCheckedContinuation { continuation in
+            let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: NWEndpoint.Port(integerLiteral: port))
+            let parameters = NWParameters.tcp
+            parameters.serviceClass = .interactiveVideo
+            
+            let connection = NWConnection(to: endpoint, using: parameters)
+            
+            // Use actor for thread-safe state management
+            let state = PortTestState()
+            
+            connection.stateUpdateHandler = { connectionState in
+                Task {
+                    await state.handleStateUpdate(connectionState, connection: connection, startTime: startTime, continuation: continuation)
+                }
+            }
+            
+            let queue = DispatchQueue(label: "port-test-\(port)", qos: .userInitiated)
+            connection.start(queue: queue)
+            
+            // Very short timeout for port testing (500ms per port)
+            Task {
+                try? await Task.sleep(for: .milliseconds(500))
+                await state.handleTimeout(connection: connection, continuation: continuation)
+            }
+        }
+    }
+    
+    // Actor to handle port test state safely
+    private actor PortTestState {
+        private var hasResumed = false
+        
+        func handleStateUpdate(_ state: NWConnection.State, connection: NWConnection, startTime: Date, continuation: CheckedContinuation<ReachabilityStatus, Never>) {
+            guard !hasResumed else { return }
+            
+            switch state {
+            case .ready:
+                hasResumed = true
+                let latency = Date().timeIntervalSince(startTime)
+                connection.cancel()
+                continuation.resume(returning: .reachable(latency: latency))
+                
+            case .failed(_):
+                hasResumed = true
+                connection.cancel()
+                // For port testing, a connection refused is actually good - it means the host is reachable
+                let latency = Date().timeIntervalSince(startTime)
+                continuation.resume(returning: .reachable(latency: latency))
+                
+            case .cancelled:
+                if !hasResumed {
+                    hasResumed = true
+                    continuation.resume(returning: .timeout)
+                }
+                
+            default:
+                break
+            }
+        }
+        
+        func handleTimeout(connection: NWConnection, continuation: CheckedContinuation<ReachabilityStatus, Never>) {
+            guard !hasResumed else { return }
+            hasResumed = true
+            connection.cancel()
+            continuation.resume(returning: .timeout)
+        }
+    }
+    
+    // Actor to handle path monitoring state safely with Swift 6 concurrency
+    private actor ConnectionState {
+        private var hasResumed = false
+        
+        func handleTimeout(continuation: CheckedContinuation<ReachabilityStatus, Never>) {
+            guard !hasResumed else { return }
+            hasResumed = true
+            continuation.resume(returning: .timeout)
         }
     }
 
