@@ -1,0 +1,181 @@
+name: Build
+
+on:
+    push:
+        branches:
+            - develop
+            - 'feature/**'
+    pull_request:
+        branches:
+            - develop
+            - 'feature/**'
+
+jobs:
+    build-universal-macos:
+        runs-on: macos-latest
+
+        outputs:
+            build-number: ${{ steps.set-build-number.outputs.build-number }}
+            release-name: ${{ steps.set-build-number.outputs.release-name }}
+            zip-name: ${{ steps.set-build-number.outputs.zip-name }}
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set build number and names
+              id: set-build-number
+              run: |
+                  BUILD_NUMBER=${{ github.run_number }}
+                  DATE=$(date +%Y-%m-%d)
+                  RELEASE_NAME="you-up-build-${BUILD_NUMBER}"
+                  ZIP_NAME="you-up-build-${BUILD_NUMBER}-${DATE}"
+                  echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+                  echo "release-name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
+                  echo "zip-name=${ZIP_NAME}" >> $GITHUB_OUTPUT
+                  echo "Build Number: ${BUILD_NUMBER}"
+                  echo "Release Name: ${RELEASE_NAME}"
+                  echo "Zip Name: ${ZIP_NAME}"
+
+            - name: Setup Swift
+              uses: swift-actions/setup-swift@v2
+              with:
+                  swift-version: '6.1'
+
+            - name: Display Swift version
+              run: swift --version
+
+            - name: Display system info
+              run: |
+                  xcode-select --print-path
+                  uname -m
+
+            - name: Cache Swift packages
+              uses: actions/cache@v4
+              with:
+                  path: .build
+                  key: universal-macos-swift-6.1-${{ hashFiles('Package.swift', 'Package.resolved') }}
+                  restore-keys: |
+                      universal-macos-swift-6.1-
+                      universal-macos-swift-
+
+            - name: Build Universal Binary (x86_64)
+              run: swift build -c release --arch x86_64
+
+            - name: Build Universal Binary (arm64)
+              run: swift build -c release --arch arm64
+
+            - name: Create Universal Binary
+              run: |
+                  mkdir -p .build/universal
+                  lipo -create \
+                    .build/x86_64-apple-macosx/release/you-up \
+                    .build/arm64-apple-macosx/release/you-up \
+                    -output .build/universal/you-up
+
+            - name: Verify Universal Binary
+              run: |
+                  file .build/universal/you-up
+                  lipo -info .build/universal/you-up
+
+            - name: Create Bill of Materials
+              run: |
+                  BUILD_DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+                  cat > BUILDINFO.md << EOF
+                  # Build Information
+
+                  This file contains the Bill of Materials (BoM) for this you-up build.
+
+                  ## Build Details
+
+                  | Field | Value |
+                  |-------|-------|
+                  | **Build Number** | ${{ steps.set-build-number.outputs.build-number }} |
+                  | **Build Date** | ${BUILD_DATE} |
+                  | **Git SHA** | ${{ github.sha }} |
+                  | **Git Branch** | ${{ github.ref_name }} |
+                  | **Repository** | ${{ github.repository }} |
+                  | **Workflow** | ${{ github.workflow }} |
+                  | **Runner OS** | macOS Latest |
+                  | **Swift Version** | 6.1 |
+                  | **Architecture** | Universal (x86_64 + arm64) |
+
+                  ## Files Included
+
+                  - \`you-up\` - Universal macOS binary
+                  - \`README.md\` - Project documentation
+                  - \`LICENSE\` - MIT License file
+                  - \`BUILDINFO.md\` - This build information file
+                  EOF
+
+            - name: Create Release Archive
+              run: |
+                  mkdir -p release
+                  cp .build/universal/you-up release/
+                  cp README.md release/
+                  cp LICENSE release/
+                  cp BUILDINFO.md release/
+                  cd release
+                  zip -r ${{ steps.set-build-number.outputs.zip-name }}.zip .
+                  mv ${{ steps.set-build-number.outputs.zip-name }}.zip ../
+
+            - name: Upload Universal Binary
+              uses: actions/upload-artifact@v4
+              with:
+                  name: you-up-universal-macos
+                  path: .build/universal/you-up
+                  retention-days: 30
+
+            - name: Upload Release Archive
+              uses: actions/upload-artifact@v4
+              with:
+                  name: ${{ steps.set-build-number.outputs.zip-name }}
+                  path: ${{ steps.set-build-number.outputs.zip-name }}.zip
+                  retention-days: 90
+
+    create-release:
+        needs: build-universal-macos
+        runs-on: ubuntu-latest
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/'))
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Download Release Archive
+              uses: actions/download-artifact@v4
+              with:
+                  name: ${{ needs.build-universal-macos.outputs.zip-name }}
+
+            - name: Create Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  name: ${{ needs.build-universal-macos.outputs.release-name }}
+                  tag_name: ${{ needs.build-universal-macos.outputs.release-name }}
+                  prerelease: true
+                  generate_release_notes: true
+                  files: ${{ needs.build-universal-macos.outputs.zip-name }}.zip
+                  body: |
+                      ## Swift Format Proxy - Build ${{ needs.build-universal-macos.outputs.build-number }}
+
+                      This is a prerelease build of you-up.
+
+                      ### What's Included
+                      - Universal macOS binary (x86_64 + arm64)
+                      - README.md documentation
+                      - LICENSE file
+
+                      ### Installation
+                      1. Download and extract the zip file
+                      2. Copy `you-up` to a directory in your PATH (e.g., `/usr/local/bin/`)
+                      3. Make it executable: `chmod +x /usr/local/bin/you-up`
+
+                      ### Usage
+                      Configure your VS Code settings to use this tool with the apple-swift-format extension.
+
+                      **Build Information:**
+                      - Build Number: ${{ needs.build-universal-macos.outputs.build-number }}
+                      - Commit: ${{ github.sha }}
+                      - Branch: ${{ github.ref_name }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
