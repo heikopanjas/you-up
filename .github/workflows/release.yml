@@ -1,41 +1,43 @@
-name: Build
+name: Release
 
 on:
     push:
         branches:
-            - develop
-            - 'feature/**'
-    pull_request:
-        branches:
-            - develop
-            - 'feature/**'
+            - main
+        tags:
+            - 'v*.*.*'
 
 jobs:
-    build-universal-macos:
+    build-release:
         runs-on: macos-latest
+        if: startsWith(github.ref, 'refs/tags/v')
 
         outputs:
-            build-number: ${{ steps.set-build-number.outputs.build-number }}
-            release-name: ${{ steps.set-build-number.outputs.release-name }}
-            zip-name: ${{ steps.set-build-number.outputs.zip-name }}
+            version: ${{ steps.get-version.outputs.version }}
+            zip-name: ${{ steps.get-version.outputs.zip-name }}
 
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - name: Set build number and names
-              id: set-build-number
+            - name: Get version from tag
+              id: get-version
               run: |
-                  BUILD_NUMBER=${{ github.run_number }}
-                  DATE=$(date +%Y-%m-%d)
-                  RELEASE_NAME="you-up-build-${BUILD_NUMBER}"
-                  ZIP_NAME="you-up-build-${BUILD_NUMBER}-${DATE}"
-                  echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
-                  echo "release-name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
+                  VERSION=${GITHUB_REF#refs/tags/}
+                  ZIP_NAME="you-up-${VERSION}"
+                  echo "version=${VERSION}" >> $GITHUB_OUTPUT
                   echo "zip-name=${ZIP_NAME}" >> $GITHUB_OUTPUT
-                  echo "Build Number: ${BUILD_NUMBER}"
-                  echo "Release Name: ${RELEASE_NAME}"
+                  echo "Version: ${VERSION}"
                   echo "Zip Name: ${ZIP_NAME}"
+
+            - name: Validate semantic version
+              run: |
+                  VERSION=${{ steps.get-version.outputs.version }}
+                  if [[ ! $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    echo "Error: Tag '$VERSION' does not follow semantic versioning (v#.#.#)"
+                    exit 1
+                  fi
+                  echo "✅ Version $VERSION is valid semantic version"
 
             - name: Setup Swift
               uses: swift-actions/setup-swift@v2
@@ -54,10 +56,10 @@ jobs:
               uses: actions/cache@v4
               with:
                   path: .build
-                  key: universal-macos-swift-6.1-${{ hashFiles('Package.swift', 'Package.resolved') }}
+                  key: release-macos-swift-6.1-${{ hashFiles('Package.swift', 'Package.resolved') }}
                   restore-keys: |
-                      universal-macos-swift-6.1-
-                      universal-macos-swift-
+                      release-macos-swift-6.1-
+                      release-macos-swift-
 
             - name: Build Universal Binary (x86_64)
               run: swift build -c release --arch x86_64
@@ -81,17 +83,18 @@ jobs:
             - name: Create Bill of Materials
               run: |
                   BUILD_DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+                  VERSION=${{ steps.get-version.outputs.version }}
                   cat > BUILDINFO.md << EOF
                   # Build Information
 
-                  This file contains the Bill of Materials (BoM) for this you-up build.
+                  This file contains the Bill of Materials (BoM) for this you-up release.
 
-                  ## Build Details
+                  ## Release Details
 
                   | Field | Value |
                   |-------|-------|
-                  | **Build Number** | ${{ steps.set-build-number.outputs.build-number }} |
-                  | **Build Date** | ${BUILD_DATE} |
+                  | **Version** | ${VERSION} |
+                  | **Release Date** | ${BUILD_DATE} |
                   | **Git SHA** | ${{ github.sha }} |
                   | **Git Branch** | ${{ github.ref_name }} |
                   | **Repository** | ${{ github.repository }} |
@@ -99,6 +102,7 @@ jobs:
                   | **Runner OS** | macOS Latest |
                   | **Swift Version** | 6.1 |
                   | **Architecture** | Universal (x86_64 + arm64) |
+                  | **Release Type** | Production Release |
 
                   ## Files Included
 
@@ -116,27 +120,20 @@ jobs:
                   cp LICENSE release/
                   cp BUILDINFO.md release/
                   cd release
-                  zip -r ${{ steps.set-build-number.outputs.zip-name }}.zip .
-                  mv ${{ steps.set-build-number.outputs.zip-name }}.zip ../
-
-            - name: Upload Universal Binary
-              uses: actions/upload-artifact@v4
-              with:
-                  name: you-up-universal-macos
-                  path: .build/universal/you-up
-                  retention-days: 30
+                  zip -r ${{ steps.get-version.outputs.zip-name }}.zip .
+                  mv ${{ steps.get-version.outputs.zip-name }}.zip ../
 
             - name: Upload Release Archive
               uses: actions/upload-artifact@v4
               with:
-                  name: ${{ steps.set-build-number.outputs.zip-name }}
-                  path: ${{ steps.set-build-number.outputs.zip-name }}.zip
-                  retention-days: 90
+                  name: ${{ steps.get-version.outputs.zip-name }}
+                  path: ${{ steps.get-version.outputs.zip-name }}.zip
+                  retention-days: 365
 
-    create-release:
-        needs: build-universal-macos
+    create-github-release:
+        needs: build-release
         runs-on: ubuntu-latest
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/'))
+        if: startsWith(github.ref, 'refs/tags/v')
 
         steps:
             - name: Checkout code
@@ -145,37 +142,38 @@ jobs:
             - name: Download Release Archive
               uses: actions/download-artifact@v4
               with:
-                  name: ${{ needs.build-universal-macos.outputs.zip-name }}
+                  name: ${{ needs.build-release.outputs.zip-name }}
 
-            - name: Create Release
+            - name: Create GitHub Release
               uses: softprops/action-gh-release@v2
               with:
-                  name: ${{ needs.build-universal-macos.outputs.release-name }}
-                  tag_name: ${{ needs.build-universal-macos.outputs.release-name }}
-                  prerelease: true
+                  name: you-up ${{ needs.build-release.outputs.version }}
+                  tag_name: ${{ needs.build-release.outputs.version }}
+                  prerelease: false
                   generate_release_notes: true
-                  files: ${{ needs.build-universal-macos.outputs.zip-name }}.zip
+                  files: ${{ needs.build-release.outputs.zip-name }}.zip
                   body: |
-                      ## Swift Format Proxy - Build ${{ needs.build-universal-macos.outputs.build-number }}
+                      ## Swift Format Proxy ${{ needs.build-release.outputs.version }}
 
-                      This is a prerelease build of you-up.
+                      Production release of you-up.
 
                       ### What's Included
                       - Universal macOS binary (x86_64 + arm64)
-                      - README.md documentation
-                      - LICENSE file
+                      - Complete documentation
+                      - Build information and Bill of Materials
 
                       ### Installation
                       1. Download and extract the zip file
                       2. Copy `you-up` to a directory in your PATH (e.g., `/usr/local/bin/`)
                       3. Make it executable: `chmod +x /usr/local/bin/you-up`
+                      4. Configure your VS Code settings to use this tool with the apple-swift-format extension
 
                       ### Usage
-                      Configure your VS Code settings to use this tool with the apple-swift-format extension.
+                      See the included README.md for detailed configuration instructions.
 
-                      **Build Information:**
-                      - Build Number: ${{ needs.build-universal-macos.outputs.build-number }}
+                      **Release Information:**
+                      - Version: ${{ needs.build-release.outputs.version }}
                       - Commit: ${{ github.sha }}
-                      - Branch: ${{ github.ref_name }}
+                      - Universal Binary: x86_64 + arm64
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
