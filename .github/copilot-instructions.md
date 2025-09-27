@@ -1,6 +1,6 @@
 # Copilot Instructions for you-up
 
-Last updated: 2025-09-26
+Last updated: 2025-09-28
 
 ## Project Overview
 
@@ -241,3 +241,9 @@ swift test
   - Achieved massive performance improvement: 1000ms timeout → ~5ms response time (200x faster)
   - Eliminated false negatives from HTTP-based approach that failed on routers without web servers
   - Maintains sandbox compatibility while providing accurate network-level connectivity testing
+
+- **2025-09-28**: Fixed GitHub Actions workflow permissions for release creation
+  - Added `permissions: contents: write` to build.yml workflow to fix "Resource not accessible by integration" error
+  - This permission is required for GitHub Actions to create releases using the `softprops/action-gh-release@v2` action
+  - The error occurred because GitHub changed the default permissions for GITHUB_TOKEN to be more restrictive
+  - Without explicit permissions, the workflow only has read access, which is insufficient for creating releases

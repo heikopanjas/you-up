@@ -10,6 +10,9 @@ on:
             - develop
             - 'feature/**'
 
+permissions:
+    contents: write
+
 jobs:
     build-universal-macos:
         runs-on: macos-latest
@@ -179,7 +182,7 @@ jobs:
                   generate_release_notes: true
                   files: ${{ needs.build-universal-macos.outputs.zip-name }}.zip
                   body: |
-                      ## Swift Format Proxy - Build ${{ needs.build-universal-macos.outputs.build-number }}
+                      ## You-up - Build ${{ needs.build-universal-macos.outputs.build-number }}
 
                       This is a prerelease build of you-up.
 
@@ -194,7 +197,7 @@ jobs:
                       3. Make it executable: `chmod +x /usr/local/bin/you-up`
 
                       ### Usage
-                      Configure your VS Code settings to use this tool with the apple-swift-format extension.
+                      See the included README.md for detailed configuration instructions.
 
                       **Build Information:**
                       - Build Number: ${{ needs.build-universal-macos.outputs.build-number }}
