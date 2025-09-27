@@ -170,16 +170,16 @@ struct YouUpCLI: AsyncParsableCommand {
                 print()
             }
 
-            print("🔍 DNS Test Domains:")
-            for domain in checker.getConfiguredDNSTestDomains() {
+            print("🔍 DNS Domains:")
+            for domain in checker.getConfiguredDNSDomains() {
                 print("  • \(domain)")
             }
             print()
         }
 
-        // Show internet test endpoints only for internet-only and both modes
+        // Show internet endpoints only for internet-only and both modes
         if mode == .internetOnly || mode == .both {
-            print("🌐 Internet Test Endpoints:")
+            print("🌐 Internet Endpoints:")
             for endpoint in checker.getConfiguredEndpoints() {
                 if let url = URL(string: endpoint), let host = url.host {
                     print("  • \(endpoint) (\(host))")
@@ -298,8 +298,8 @@ struct YouUpCLI: AsyncParsableCommand {
                 print("   • \(endpoint)")
             }
             print()
-            print("🔍 Configured DNS test domains:")
-            for domain in config.dnsTestDomains {
+            print("🔍 Configured DNS domains:")
+            for domain in config.dnsEndpoints {
                 print("   • \(domain)")
             }
         }
@@ -317,12 +317,12 @@ struct YouUpCLI: AsyncParsableCommand {
                 print("   • \(endpoint)")
             }
             print()
-            print("� Sample DNS test domains:")
-            for domain in sampleConfig.dnsTestDomains {
+            print("🔍 Sample DNS domains:")
+            for domain in sampleConfig.dnsEndpoints {
                 print("   • \(domain)")
             }
             print()
-            print("�� You can edit this file to customize the internet test endpoints and DNS test domains")
+            print("🌐 You can edit this file to customize the internet endpoints and DNS domains")
         }
     }
 }
