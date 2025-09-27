@@ -65,13 +65,36 @@ jobs:
             - name: Build Universal Binary (arm64)
               run: swift build -c release --arch arm64
 
+            - name: Debug build directories
+              run: |
+                  echo "Build directory structure:"
+                  find .build -name "you-up-cli" 2>/dev/null || true
+                  echo "All build directories:"
+                  ls -la .build/ || true
+                  echo "x86_64 directory contents:"
+                  ls -la .build/x86_64-apple-macosx*/release/ 2>/dev/null || true
+                  echo "arm64 directory contents:"
+                  ls -la .build/arm64-apple-macosx*/release/ 2>/dev/null || true
+
             - name: Create Universal Binary
               run: |
                   mkdir -p .build/universal
-                  lipo -create \
-                    .build/x86_64-apple-macosx/release/you-up \
-                    .build/arm64-apple-macosx/release/you-up \
-                    -output .build/universal/you-up
+                  # Find the you-up-cli executable (the actual executable name from Package.swift)
+                  X86_EXEC=$(find .build -path "*x86_64*release*" -name "you-up-cli" | head -1)
+                  ARM_EXEC=$(find .build -path "*arm64*release*" -name "you-up-cli" | head -1)
+
+                  echo "x86_64 executable: $X86_EXEC"
+                  echo "arm64 executable: $ARM_EXEC"
+
+                  if [[ -z "$X86_EXEC" || -z "$ARM_EXEC" ]]; then
+                    echo "Error: Could not find you-up-cli executables"
+                    echo "Available files:"
+                    find .build -type f -executable 2>/dev/null || true
+                    exit 1
+                  fi
+
+                  # Create universal binary with final name 'you-up' for distribution
+                  lipo -create "$X86_EXEC" "$ARM_EXEC" -output .build/universal/you-up
 
             - name: Verify Universal Binary
               run: |
