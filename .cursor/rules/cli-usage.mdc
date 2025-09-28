@@ -1,0 +1,18 @@
+---
+description: CLI commands, flags, and output formats
+---
+# CLI Usage Quick Reference
+
+- Executable: `you-up-cli` ([main.swift](mdc:Sources/you-up-cli/main.swift))
+- Common commands:
+  - `swift run you-up-cli` — full check
+  - `--verbose` — show interfaces, routers, DNS servers, domains, endpoints
+  - `--internet-only` | `--gateway-only` | `--dns-only`
+  - `--json` — machine-readable output
+  - `--show-config` — print config path, create sample if missing
+- JSON fields mirror `NetworkStatus`:
+  - `gateway.internet.dns.status` (string), `reachable` (bool), and `timestamp`.
+- Configuration locations:
+  - `$XDG_CONFIG_HOME/you-up/endpoints.json` or `$HOME/.config/you-up/endpoints.json`
+  - Sample creation handled by the CLI via `ConfigurationLoader`.
+

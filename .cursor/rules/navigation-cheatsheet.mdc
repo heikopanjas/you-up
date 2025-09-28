@@ -1,0 +1,28 @@
+---
+alwaysApply: true
+description: Fast code navigation map for common questions
+---
+# Navigation Cheatsheet
+
+- **"How does combined diagnosis work?"**
+  - `NetworkChecker.checkNetworkStatus()` in [NetworkChecker.swift](mdc:Sources/you-up/NetworkChecker.swift)
+  - Human/JSON output logic in [Sources/you-up-cli/main.swift](mdc:Sources/you-up-cli/main.swift)
+
+- **"Where are defaults and config loaded?"**
+  - Defaults and JSON loading in [Configuration.swift](mdc:Sources/you-up/Configuration.swift)
+
+- **"Where is gateway detection implemented?"**
+  - Router discovery + media types: [GatewayCheck.swift](mdc:Sources/you-up/GatewayCheck.swift)
+
+- **"Where is DNS resolution tested and DNS servers listed?"**
+  - Resolution + server enumeration: [DNSCheck.swift](mdc:Sources/you-up/DNSCheck.swift)
+
+- **"Where are internet endpoints tested?"**
+  - HTTP HEAD checks: [InternetCheck.swift](mdc:Sources/you-up/InternetCheck.swift)
+
+- **"Where are CLI flags and outputs?"**
+  - Argument parsing, verbose listings, summary matrix, JSON: [Sources/you-up-cli/main.swift](mdc:Sources/you-up-cli/main.swift)
+
+- **"What does the tool do + usage examples?"**
+  - See [README.md](mdc:README.md)
+

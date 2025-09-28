@@ -1,0 +1,26 @@
+---
+globs: *.swift
+description: Swift 6, strict concurrency, macOS 15+ specifics for this repo
+---
+# Swift Guidelines for this Repository
+
+- **Swift version**: Swift 6 with strict concurrency enabled (`StrictConcurrency=complete`) in [Package.swift](mdc:Package.swift).
+- **Platforms**: macOS 15+. Prefer modern APIs (`Network`, `SystemConfiguration`, `URLSession`).
+- **Concurrency**:
+  - Use `async/await`; avoid blocking calls.
+  - Keep types that cross concurrency boundaries `Sendable` (see existing `struct`s and `final class` + `Sendable` usage).
+  - Prefer `actor`s for shared mutable state (e.g., `GatewayCheck.PortTestState`).
+- **Networking**:
+  - `InternetCheck` uses `URLSession` HEAD with a 3s timeout; return `ReachabilityStatus` with measured latency on success.
+  - `GatewayCheck` tries TCP connection on ports `[80, 443, 22, 23, 53]`; treat `ready` or `failed` (connection refused) as reachable; 500ms per-port timeout.
+  - `DNSCheck` triggers resolution via HTTP HEAD to `http://domain`; many errors still imply DNS worked.
+- **Public API style**:
+  - Keep public surface in `you-up` minimal and coherent via `NetworkChecker`.
+  - Return `ReachabilityStatus` and `NetworkStatus` from checks; keep `description` user-friendly.
+- **Error handling**:
+  - Prefer typed results (`ReachabilityStatus`) over throwing for connectivity outcomes.
+  - Use `.timeout` vs `.unreachable` meaningfully.
+- **Extending**:
+  - New checks conform to `NetworkCheck` in [NetworkCheck.swift](mdc:Sources/you-up/NetworkCheck.swift).
+  - Wire into `NetworkChecker` to participate in combined status and JSON output.
+

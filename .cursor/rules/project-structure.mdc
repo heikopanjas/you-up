@@ -1,0 +1,33 @@
+---
+alwaysApply: true
+---
+# Project Structure Guide
+
+- **Package manifest**: [Package.swift](mdc:Package.swift)
+- **Library target**: `you-up` in [Sources/you-up](mdc:Sources/you-up)
+  - Entry points and key types:
+    - `NetworkChecker`: [Sources/you-up/NetworkChecker.swift](mdc:Sources/you-up/NetworkChecker.swift)
+    - `NetworkCheck` protocol: [Sources/you-up/NetworkCheck.swift](mdc:Sources/you-up/NetworkCheck.swift)
+    - Checks:
+      - `GatewayCheck`: [Sources/you-up/GatewayCheck.swift](mdc:Sources/you-up/GatewayCheck.swift)
+      - `InternetCheck`: [Sources/you-up/InternetCheck.swift](mdc:Sources/you-up/InternetCheck.swift)
+      - `DNSCheck`: [Sources/you-up/DNSCheck.swift](mdc:Sources/you-up/DNSCheck.swift)
+    - Configuration:
+      - `EndpointsConfiguration` and `ConfigurationLoader`: [Sources/you-up/Configuration.swift](mdc:Sources/you-up/Configuration.swift)
+- **CLI target**: `you-up-cli` in [Sources/you-up-cli/main.swift](mdc:Sources/you-up-cli/main.swift)
+  - Parses flags, prints human/JSON output, and delegates checks to `NetworkChecker`.
+- **Documentation**: [README.md](mdc:README.md) for usage, config, and diagnosis matrix.
+
+## Where to make changes
+
+- **Add new network tests**: implement a new `NetworkCheck` in `Sources/you-up/`, then compose it in `NetworkChecker`.
+- **Adjust endpoints/DNS defaults**: edit `EndpointsConfiguration` in `Configuration.swift`.
+- **Change CLI options/output**: edit `Sources/you-up-cli/main.swift`.
+
+## Configuration behavior
+
+- Loads JSON from:
+  1. `$XDG_CONFIG_HOME/you-up/endpoints.json`
+  2. `$HOME/.config/you-up/endpoints.json`
+- Falls back to `EndpointsConfiguration.default` if missing/invalid.
+

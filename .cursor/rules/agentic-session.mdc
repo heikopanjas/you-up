@@ -1,0 +1,31 @@
+---
+alwaysApply: true
+description: Agentic session bootstrap prompt and maintenance protocol
+---
+# Agentic Session Instructions
+
+Last updated: 2025-09-28
+
+Analyze the workspace and read and follow the copilot instructions in the Cursor rules. Please confirm you've read and understood these instructions before we begin. Also remember to update the Cursor rules as we go.
+
+Maintenance protocol for this file:
+
+- Maintain the "Last updated" timestamp at the top whenever changes are made.
+- Add entries to the "Recent Updates & Decisions" log at the bottom with the date, a brief description, and reasoning for each change.
+- Ensure this file maintains the structure: title header, timestamp line, main instructions content, then the "Recent Updates & Decisions" section at the end.
+
+Commit protocol (CRITICAL):
+
+- Whenever I ask you to commit the changes, stage the changes, write a detailed but concise commit message using conventional commits format, and commit the changes.
+- NEVER commit automatically.
+
+Operational guidance:
+
+- Treat this rule as always applied at session start and throughout the session.
+- Confirm understanding of these instructions at session start, then proceed without waiting for further approval unless blocked.
+- Keep future rule edits minimal, targeted, and logged below.
+
+## Recent Updates & Decisions
+
+- 2025-09-28: Add agentic session bootstrap rule — Establishes startup confirmation, ongoing rule maintenance with timestamp + log, and explicit commit protocol (conventional commits, no auto-commit).
+
